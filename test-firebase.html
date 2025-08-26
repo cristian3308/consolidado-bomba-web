@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Firebase Connection</title>
+</head>
+<body>
+    <h1>Test Firebase Connection</h1>
+    <div id="status">Conectando...</div>
+    <button onclick="testConnection()">Probar Conexión</button>
+    <div id="result"></div>
+
+    <script type="module">
+        // Firebase compat version
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyBy4VBVYIT0P_TXp5sGR_B__7UNiaT-d_0",
+            authDomain: "proyecto-colaborativa.firebaseapp.com",
+            projectId: "proyecto-colaborativa",
+            storageBucket: "proyecto-colaborativa.firebasestorage.app",
+            messagingSenderId: "382895872658",
+            appId: "1:382895872658:web:e323f23102963f683f244b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.testConnection = async function() {
+            const statusDiv = document.getElementById('status');
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                statusDiv.textContent = 'Probando conexión...';
+                
+                // Intentar leer la colección de usuarios
+                const querySnapshot = await getDocs(collection(db, "usuarios"));
+                
+                statusDiv.textContent = 'Conexión exitosa!';
+                resultDiv.innerHTML = `<p style="color: green;">Firebase está funcionando correctamente. Documentos encontrados: ${querySnapshot.size}</p>`;
+                
+            } catch (error) {
+                statusDiv.textContent = 'Error de conexión';
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                console.error('Error:', error);
+            }
+        };
+
+        // Test automático al cargar
+        document.addEventListener('DOMContentLoaded', () => {
+            testConnection();
+        });
+    </script>
+</body>
+</html>

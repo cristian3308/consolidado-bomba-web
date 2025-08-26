@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Cobros - Consolidado Bomba</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dark-theme.css">
+</head>
+<body>
+    <!-- Login Modal -->
+    <div class="modal fade" id="loginModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-lock me-2"></i>Iniciar Sesión
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Usuario</label>
+                            <input type="text" class="form-control" id="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Contraseña</label>
+                            <input type="password" class="form-control" id="password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+                    </form>
+                    <div id="loginError" class="alert alert-danger mt-3 d-none"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary" id="mainNavbar" style="display: none;">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-building me-2"></i>Consolidado Bomba
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3" id="connectionStatus"></span>
+                <span class="navbar-text me-3" id="userWelcome"></span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt me-1"></i>Salir
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid" id="mainContent" style="display: none;">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar bg-light">
+                <div class="d-flex flex-column p-3">
+                    <ul class="nav nav-pills flex-column mb-auto">
+                        <li class="nav-item">
+                            <a href="#" class="nav-link active" onclick="showSection('dashboard', this)">
+                                <i class="fas fa-chart-dashboard me-2"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" onclick="showSection('cobros', this)">
+                                <i class="fas fa-money-bill me-2"></i>Registrar Cobro
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" onclick="showSection('usuarios', this)">
+                                <i class="fas fa-users me-2"></i>Gestionar Usuarios
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="#" class="nav-link" onclick="showSection('reportes', this)">
+                                <i class="fas fa-file-alt me-2"></i>Reportes
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <!-- Dashboard Section -->
+                <div id="dashboardSection" class="content-section fade-in">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2"><i class="fas fa-chart-line me-2" style="color: var(--accent-primary);"></i>Dashboard</h1>
+                        <div class="btn-toolbar mb-2 mb-md-0">
+                            <select id="dashboardYear" class="form-select me-2" onchange="updateDashboard()">
+                                <option value="2024">2024</option>
+                                <option value="2025" selected>2025</option>
+                            </select>
+                            <select id="dashboardMonth" class="form-select" onchange="updateDashboard()">
+                                <option value="">Todos los meses</option>
+                                <option value="1">Enero</option>
+                                <option value="2">Febrero</option>
+                                <option value="3">Marzo</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Mayo</option>
+                                <option value="6">Junio</option>
+                                <option value="7">Julio</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Septiembre</option>
+                                <option value="10">Octubre</option>
+                                <option value="11">Noviembre</option>
+                                <option value="12">Diciembre</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-stats slide-in-up">
+                        <div class="stat-card">
+                            <div class="stat-icon icon-money">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stat-value" id="totalCobros">$0</div>
+                            <div class="stat-label">Total Cobros</div>
+                            <div class="stat-change positive" id="cobrosTrend">
+                                <i class="fas fa-arrow-up me-1"></i>+0% este mes
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon icon-chart">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <div class="stat-value" id="totalTransacciones">0</div>
+                            <div class="stat-label">Transacciones</div>
+                            <div class="stat-change positive" id="transaccionesTrend">
+                                <i class="fas fa-arrow-up me-1"></i>+0 nuevas
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon icon-users">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-value" id="totalUsuarios">0</div>
+                            <div class="stat-label">Usuarios Activos</div>
+                            <div class="stat-change positive" id="usuariosTrend">
+                                <i class="fas fa-arrow-up me-1"></i>+0% activos
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon icon-total">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <div class="stat-value" id="promedioCobro">$0</div>
+                            <div class="stat-label">Promedio por Cobro</div>
+                            <div class="stat-change positive" id="promedioTrend">
+                                <i class="fas fa-equals me-1"></i>Estable
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card glass-effect">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Resumen por Usuario</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="userSummary" class="table-responsive">
+                                        <!-- Se llenará dinámicamente -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="card glass-effect">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Actividad Reciente</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="actividadReciente">
+                                        <p class="text-muted">Cargando actividad...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cobros Section -->
+                <div id="cobrosSection" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2"><i class="fas fa-money-bill-wave me-2" style="color: var(--accent-primary);"></i>Registrar Cobro</h1>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="cobroForm" class="slide-in-up">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="cobroUsuario" class="form-label">
+                                                <i class="fas fa-user me-2"></i>Usuario
+                                            </label>
+                                            <select class="form-select" id="cobroUsuario" required>
+                                                <option value="">Seleccionar usuario...</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="cobroMonto" class="form-label">
+                                                <i class="fas fa-dollar-sign me-2"></i>Monto
+                                            </label>
+                                            <input type="number" step="0.01" class="form-control" id="cobroMonto" required>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Campos para usuario de solo planilla -->
+                                <div id="planillaFields" style="display: none;">
+                                    <div class="card mb-3 glass-effect">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Información de Planilla</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="numeroPlanilla" class="form-label">Número de Planilla</label>
+                                                        <input type="text" class="form-control" id="numeroPlanilla">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="fechaPlanilla" class="form-label">Fecha de Planilla</label>
+                                                        <input type="date" class="form-control" id="fechaPlanilla">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Campos para usuario de planilla y comprobante -->
+                                <div id="comprobanteFields" style="display: none;">
+                                    <div class="card mb-3 glass-effect">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Información de Planilla</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="numeroPlanillaComp" class="form-label">Número de Planilla</label>
+                                                        <input type="text" class="form-control" id="numeroPlanillaComp">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="fechaPlanillaComp" class="form-label">Fecha de Planilla</label>
+                                                        <input type="date" class="form-control" id="fechaPlanillaComp">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="card mb-3 glass-effect">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>Información de Comprobante</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="numeroComprobante" class="form-label">Número de Comprobante</label>
+                                                        <input type="text" class="form-control" id="numeroComprobante">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label for="fechaComprobante" class="form-label">Fecha de Comprobante</label>
+                                                        <input type="date" class="form-control" id="fechaComprobante">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="cobroDescripcion" class="form-label">
+                                        <i class="fas fa-comment me-2"></i>Descripción
+                                    </label>
+                                    <textarea class="form-control" id="cobroDescripcion" rows="3" placeholder="Descripción del cobro (opcional)"></textarea>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary interactive-element">
+                                        <i class="fas fa-save me-2"></i>Registrar Cobro
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Lista de cobros recientes -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5>Cobros Recientes</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="cobrosRecientes" class="table-responsive">
+                                <!-- Se llenará dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Usuarios Section -->
+                <div id="usuariosSection" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2"><i class="fas fa-users me-2" style="color: var(--accent-primary);"></i>Gestionar Usuarios</h1>
+                        <button class="btn btn-primary pulse-effect" data-bs-toggle="modal" data-bs-target="#userModal">
+                            <i class="fas fa-plus me-1"></i>Nuevo Usuario
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <div id="usuariosList" class="table-responsive">
+                                <!-- Se llenará dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reportes Section -->
+                <div id="reportesSection" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2"><i class="fas fa-chart-pie me-2" style="color: var(--accent-primary);"></i>Reportes</h1>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>Filtros de Reporte</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="reporteUsuario" class="form-label">Usuario</label>
+                                        <select class="form-select" id="reporteUsuario">
+                                            <option value="">Todos los usuarios</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="mb-3">
+                                                <label for="reporteFechaInicio" class="form-label">
+                                                    <i class="fas fa-calendar me-1"></i>Fecha Desde
+                                                </label>
+                                                <input type="date" class="form-control" id="reporteFechaInicio">
+                                                <small class="form-text text-muted">Filtra por fecha de planilla (solo planilla) o fecha de comprobante (planilla + comprobante)</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="mb-3">
+                                                <label for="reporteFechaFin" class="form-label">
+                                                    <i class="fas fa-calendar me-1"></i>Fecha Hasta
+                                                </label>
+                                                <input type="date" class="form-control" id="reporteFechaFin">
+                                                <small class="form-text text-muted">Filtra por fecha de planilla (solo planilla) o fecha de comprobante (planilla + comprobante)</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="generarReporte()">
+                                        <i class="fas fa-search me-1"></i>Generar Reporte
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>Exportar Datos</h5>
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-success me-2" onclick="exportarExcel()">
+                                        <i class="fas fa-file-excel me-1"></i>Exportar a Excel
+                                    </button>
+                                    <button class="btn btn-info" onclick="exportarPDF()">
+                                        <i class="fas fa-file-pdf me-1"></i>Exportar a PDF
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5>Resultados del Reporte</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="reporteResultados">
+                                <!-- Se llenará dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Modal -->
+    <div class="modal fade" id="userModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo Usuario</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="userForm">
+                        <div class="mb-3">
+                            <label for="userName" class="form-label">Nombre del Usuario</label>
+                            <input type="text" class="form-control" id="userName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Usuario</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="userType" id="typeComprobante" value="comprobante">
+                                <label class="form-check-label" for="typeComprobante">
+                                    Planilla de caja y comprobante
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="userType" id="typePlanilla" value="planilla">
+                                <label class="form-check-label" for="typePlanilla">
+                                    Solo planilla de caja
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="guardarUsuario()">Guardar Usuario</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para editar cobro -->
+    <div class="modal fade" id="editCobroModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>Editar Cobro
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCobroForm">
+                        <input type="hidden" id="editCobroId">
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editCobroUsuario" class="form-label">
+                                        <i class="fas fa-user me-2"></i>Usuario
+                                    </label>
+                                    <select class="form-select" id="editCobroUsuario" required>
+                                        <option value="">Seleccionar usuario...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editCobroMonto" class="form-label">
+                                        <i class="fas fa-dollar-sign me-2"></i>Monto
+                                    </label>
+                                    <input type="number" step="0.01" class="form-control" id="editCobroMonto" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Campos para usuario de solo planilla -->
+                        <div id="editPlanillaFields" style="display: none;">
+                            <div class="card mb-3 glass-effect">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Información de Planilla</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="editNumeroPlanilla" class="form-label">Número de Planilla</label>
+                                                <input type="text" class="form-control" id="editNumeroPlanilla">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="editFechaPlanilla" class="form-label">Fecha de Planilla</label>
+                                                <input type="date" class="form-control" id="editFechaPlanilla">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Campos para usuario de planilla y comprobante -->
+                        <div id="editComprobanteFields" style="display: none;">
+                            <div class="card mb-3 glass-effect">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Información de Planilla</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="editNumeroPlanillaComp" class="form-label">Número de Planilla</label>
+                                                <input type="text" class="form-control" id="editNumeroPlanillaComp">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="editFechaPlanillaComp" class="form-label">Fecha de Planilla</label>
+                                                <input type="date" class="form-control" id="editFechaPlanillaComp">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card mb-3 glass-effect">
+                                <div class="card-header">
+                                    <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>Información de Comprobante</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="editNumeroComprobante" class="form-label">Número de Comprobante</label>
+                                                <input type="text" class="form-control" id="editNumeroComprobante">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="editFechaComprobante" class="form-label">Fecha de Comprobante</label>
+                                                <input type="date" class="form-control" id="editFechaComprobante">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editCobroDescripcion" class="form-label">
+                                <i class="fas fa-comment me-2"></i>Descripción
+                            </label>
+                            <textarea class="form-control" id="editCobroDescripcion" rows="3" placeholder="Descripción del cobro (opcional)"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="guardarCobroEditado()">
+                        <i class="fas fa-save me-2"></i>Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <!-- Add Firebase products that you want to use -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

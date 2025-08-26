@@ -1,0 +1,25 @@
+{
+  "name": "consolidado-bomba",
+  "version": "1.0.0",
+  "description": "Sistema de registro de cobros para Consolidado Bomba",
+  "main": "index.html",
+  "scripts": {
+    "start": "live-server --port=3000",
+    "dev": "live-server --port=3000 --watch=.",
+    "build": "echo 'Build completed'"
+  },
+  "keywords": [
+    "cobros",
+    "firebase",
+    "web-app",
+    "bootstrap"
+  ],
+  "author": "Consolidado Bomba",
+  "license": "MIT",
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
+  "dependencies": {
+    "firebase": "^9.22.0"
+  }
+}
