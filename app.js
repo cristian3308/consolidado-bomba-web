@@ -230,9 +230,16 @@ class ChartManager {
         const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
         cobros.forEach(cobro => {
-            const fechaPlanilla = cobro.fechaPlanilla || cobro.fechaComprobante;
-            if (fechaPlanilla) {
-                const fecha = new Date(fechaPlanilla);
+            // Determinar qué fecha usar según el tipo de usuario
+            let fechaParaFiltro;
+            if (cobro.tipo === 'comprobante') {
+                fechaParaFiltro = cobro.fechaComprobante || cobro.fechaPlanilla;
+            } else {
+                fechaParaFiltro = cobro.fechaPlanilla;
+            }
+            
+            if (fechaParaFiltro) {
+                const fecha = new Date(fechaParaFiltro);
                 if (fecha.getFullYear() === year) {
                     monthlyTotals[fecha.getMonth()] += cobro.monto || 0;
                 }
@@ -278,7 +285,18 @@ class ChartManager {
         cobros.forEach(cobro => {
             const userId = cobro.usuarioId;
             const userName = cobro.usuarioNombre || 'Usuario Desconocido';
-            const fechaPlanilla = new Date(cobro.fechaPlanilla || cobro.fechaComprobante);
+            
+            // Determinar qué fecha usar según el tipo de usuario
+            let fechaParaFiltro;
+            if (cobro.tipo === 'comprobante') {
+                fechaParaFiltro = cobro.fechaComprobante || cobro.fechaPlanilla;
+            } else {
+                fechaParaFiltro = cobro.fechaPlanilla;
+            }
+            
+            if (!fechaParaFiltro) return; // Saltar si no hay fecha relevante
+            
+            const fechaPlanilla = new Date(fechaParaFiltro);
             const year = fechaPlanilla.getFullYear();
             const month = fechaPlanilla.getMonth();
             const monto = cobro.monto || 0;
@@ -317,7 +335,17 @@ class ChartManager {
         const yearlyStats = {};
         
         cobros.forEach(cobro => {
-            const fechaPlanilla = new Date(cobro.fechaPlanilla || cobro.fechaComprobante);
+            // Determinar qué fecha usar según el tipo de usuario
+            let fechaParaFiltro;
+            if (cobro.tipo === 'comprobante') {
+                fechaParaFiltro = cobro.fechaComprobante || cobro.fechaPlanilla;
+            } else {
+                fechaParaFiltro = cobro.fechaPlanilla;
+            }
+            
+            if (!fechaParaFiltro) return; // Saltar si no hay fecha relevante
+            
+            const fechaPlanilla = new Date(fechaParaFiltro);
             const year = fechaPlanilla.getFullYear();
             const monto = cobro.monto || 0;
             
@@ -1039,7 +1067,7 @@ async function eliminarUsuario(usuarioId) {
     }
 }
 
-// Actualizar dashboard
+// Actualizar dashboard con filtrado mejorado por fechas de planilla y comprobante
 function updateDashboard() {
     const yearSelect = document.getElementById('dashboardYear');
     const monthSelect = document.getElementById('dashboardMonth');
@@ -1049,13 +1077,31 @@ function updateDashboard() {
     const year = yearSelect.value;
     const month = monthSelect.value;
     
-    // Filtrar cobros por fecha
+    // Filtrar cobros usando fechas de planilla y comprobante
     let cobrosFiltrados = cobros.filter(cobro => {
-        const cobroDate = new Date(cobro.fecha || cobro.timestamp || Date.now());
+        // Determinar qué fecha usar para el filtro según el tipo de usuario
+        let fechaParaFiltro;
+        if (cobro.tipo === 'comprobante') {
+            // Para usuarios con comprobante, usar fecha de comprobante si existe, sino fecha de planilla
+            fechaParaFiltro = cobro.fechaComprobante || cobro.fechaPlanilla;
+        } else {
+            // Para usuarios de solo planilla, usar fecha de planilla
+            fechaParaFiltro = cobro.fechaPlanilla;
+        }
+        
+        // Si no hay fecha relevante, usar fecha de registro como fallback
+        if (!fechaParaFiltro) {
+            fechaParaFiltro = cobro.fecha || cobro.timestamp;
+        }
+        
+        if (!fechaParaFiltro) return false;
+        
+        const cobroDate = new Date(fechaParaFiltro);
         const cobroYear = cobroDate.getFullYear().toString();
+        const cobroMonth = (cobroDate.getMonth() + 1).toString();
         
         if (year && cobroYear !== year) return false;
-        if (month && (cobroDate.getMonth() + 1).toString() !== month) return false;
+        if (month && cobroMonth !== month) return false;
         
         return true;
     });
@@ -1081,6 +1127,7 @@ function updateDashboard() {
         if (!resumenUsuarios[cobro.usuarioId]) {
             const usuario = usuarios.find(u => u.id === cobro.usuarioId);
             resumenUsuarios[cobro.usuarioId] = {
+                usuarioId: cobro.usuarioId, // Agregar el ID del usuario
                 nombre: usuario ? usuario.nombre : 'Usuario eliminado',
                 tipo: usuario ? usuario.tipo : 'desconocido',
                 total: 0,
@@ -1098,7 +1145,11 @@ function updateDashboard() {
     });
     
     // Mostrar resumen por usuario
+    lastResumenUsuarios = resumenUsuarios; // Guardar para uso posterior
     showUserSummary(resumenUsuarios);
+    
+    // Mostrar usuarios detallados en el dashboard
+    showUsuariosDetallados(resumenUsuarios);
     
     // Mostrar actividad reciente
     showRecentActivity(cobrosFiltrados.slice(0, 5));
@@ -1256,6 +1307,80 @@ function showRecentActivity(recentCobros) {
     actividadContainer.innerHTML = html;
 }
 
+// Función para mostrar usuarios detallados en el dashboard
+function showUsuariosDetallados(resumenUsuarios) {
+    const container = document.getElementById('usuariosDetallados');
+    if (!container) return;
+    
+    if (Object.keys(resumenUsuarios).length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No hay datos para mostrar</p>';
+        return;
+    }
+    
+    let html = '';
+    
+    Object.values(resumenUsuarios)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 8) // Mostrar máximo 8 usuarios en el dashboard
+        .forEach(resumen => {
+            const promedio = resumen.total / resumen.transacciones;
+            
+            html += `
+                <div class="usuario-card" onclick="showUserDetailModal('${resumen.usuarioId || ''}')">
+                    <div class="usuario-header">
+                        <div class="avatar-circle">${resumen.nombre.charAt(0).toUpperCase()}</div>
+                        <div class="usuario-name">${resumen.nombre}</div>
+                    </div>
+                    <div class="usuario-stats">
+                        <div class="stat">
+                            <span class="stat-label">Total</span>
+                            <span class="stat-value text-success">$${resumen.total.toLocaleString('es-CO')}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Transacciones</span>
+                            <span class="stat-value text-info">${resumen.transacciones}</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Promedio</span>
+                            <span class="stat-value text-warning">$${Math.round(promedio).toLocaleString('es-CO')}</span>
+                        </div>
+                    </div>
+                    <div class="usuario-action">
+                        <i class="fas fa-eye"></i> Ver Detalles
+                    </div>
+                </div>
+            `;
+        });
+    
+    container.innerHTML = html;
+}
+
+// Función para alternar vista de usuarios
+function toggleUserView() {
+    const container = document.getElementById('usuariosDetallados');
+    const button = event.target;
+    
+    if (container.classList.contains('expanded-view')) {
+        container.classList.remove('expanded-view');
+        button.innerHTML = '<i class="fas fa-expand-alt me-1"></i>Vista Expandida';
+        // Mostrar solo los primeros usuarios
+        showUsuariosDetallados(getLastResumenUsuarios());
+    } else {
+        container.classList.add('expanded-view');
+        button.innerHTML = '<i class="fas fa-compress-alt me-1"></i>Vista Compacta';
+        // Mostrar todos los usuarios
+        showAllUsersModal();
+    }
+}
+
+// Variable global para mantener el último resumen de usuarios
+let lastResumenUsuarios = {};
+
+// Función para obtener el último resumen
+function getLastResumenUsuarios() {
+    return lastResumenUsuarios;
+}
+
 // Cargar cobros recientes
 function loadCobrosRecientes() {
     const container = document.getElementById('cobrosRecientes');
@@ -1350,7 +1475,7 @@ function loadReportes() {
     }
 }
 
-// Generar reporte
+// Generar reporte organizado por meses y usuarios
 function generarReporte() {
     const usuarioId = document.getElementById('reporteUsuario')?.value || '';
     const fechaInicio = document.getElementById('reporteFechaInicio')?.value || '';
@@ -1390,74 +1515,246 @@ function generarReporte() {
         return;
     }
     
+    // Organizar datos por mes y luego por usuario
+    const reporteOrganizado = organizarReportePorMesYUsuario(cobrosFiltrados);
     const total = cobrosFiltrados.reduce((sum, cobro) => sum + (cobro.monto || 0), 0);
     
     let html = `
-        <div class="row mb-3">
+        <div class="row mb-4">
             <div class="col-md-6">
                 <div class="card bg-primary text-white">
-                    <div class="card-body">
-                        <h5>Total del Reporte</h5>
+                    <div class="card-body text-center">
+                        <h5><i class="fas fa-dollar-sign me-2"></i>Total del Reporte</h5>
                         <h3>$${total.toLocaleString('es-CO')}</h3>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card bg-info text-white">
-                    <div class="card-body">
-                        <h5>Transacciones</h5>
+                    <div class="card-body text-center">
+                        <h5><i class="fas fa-receipt me-2"></i>Total Transacciones</h5>
                         <h3>${cobrosFiltrados.length}</h3>
                     </div>
                 </div>
             </div>
         </div>
         
-        <table class="table table-hover table-dark">
-            <thead>
-                <tr>
-                    <th><i class="fas fa-calendar me-1"></i>Fecha Planilla/Comprobante</th>
-                    <th><i class="fas fa-user me-1"></i>Usuario</th>
-                    <th><i class="fas fa-dollar-sign me-1"></i>Monto</th>
-                    <th><i class="fas fa-clipboard-list me-1"></i>Número Planilla</th>
-                    <th><i class="fas fa-calendar me-1"></i>Fecha Planilla</th>
-                    <th><i class="fas fa-receipt me-1"></i>Número Comprobante</th>
-                    <th><i class="fas fa-calendar me-1"></i>Fecha Comprobante</th>
-                    <th><i class="fas fa-comment me-1"></i>Descripción</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div class="reporte-detallado">
     `;
     
-    cobrosFiltrados.forEach(cobro => {
-        // Determinar qué fecha mostrar como principal según el tipo
-        const fechaPrincipal = cobro.tipo === 'comprobante' 
-            ? formatDate(cobro.fechaComprobante) || formatDate(cobro.fechaPlanilla)
-            : formatDate(cobro.fechaPlanilla);
+    // Generar reporte por meses
+    Object.keys(reporteOrganizado)
+        .sort((a, b) => new Date(b + '-01') - new Date(a + '-01')) // Ordenar por fecha descendente
+        .forEach(mesKey => {
+            const [year, month] = mesKey.split('-');
+            const monthName = new Date(year, month - 1, 1).toLocaleDateString('es-ES', { 
+                month: 'long', 
+                year: 'numeric' 
+            });
             
-        html += `
-            <tr>
-                <td>${fechaPrincipal || '-'}</td>
-                <td>
-                    <div class="d-flex align-items-center">
-                        <div class="avatar-circle me-2">${(cobro.usuarioNombre || 'U').charAt(0).toUpperCase()}</div>
-                        <div>
-                            ${cobro.usuarioNombre || 'Sin nombre'}
-                            <br><small class="text-muted">${cobro.tipo === 'comprobante' ? 'Planilla + Comprobante' : 'Solo Planilla'}</small>
+            const datosDelMes = reporteOrganizado[mesKey];
+            const totalMes = Object.values(datosDelMes.usuarios).reduce((sum, userData) => 
+                sum + userData.cobros.reduce((userSum, cobro) => userSum + (cobro.monto || 0), 0), 0
+            );
+            
+            html += `
+                <div class="mes-section mb-4">
+                    <div class="mes-header d-flex justify-content-between align-items-center p-3 bg-secondary rounded mb-3" 
+                         style="cursor: pointer;" onclick="toggleMesDetails('${mesKey}')">
+                        <h4 class="mb-0 text-white text-capitalize">
+                            <i class="fas fa-calendar-alt me-2"></i>${monthName}
+                        </h4>
+                        <div class="mes-stats d-flex gap-3 align-items-center">
+                            <span class="badge bg-light text-dark fs-6">
+                                <i class="fas fa-dollar-sign me-1"></i>$${totalMes.toLocaleString('es-CO')}
+                            </span>
+                            <span class="badge bg-light text-dark fs-6">
+                                <i class="fas fa-users me-1"></i>${Object.keys(datosDelMes.usuarios).length} usuarios
+                            </span>
+                            <span class="badge bg-light text-dark fs-6">
+                                <i class="fas fa-receipt me-1"></i>${datosDelMes.totalCobros} cobros
+                            </span>
+                            <i class="fas fa-chevron-down text-white" id="chevron-${mesKey}"></i>
                         </div>
                     </div>
-                </td>
-                <td><span class="badge bg-success fs-6">$${(cobro.monto || 0).toLocaleString('es-CO')}</span></td>
-                <td>${cobro.numeroPlanilla || '-'}</td>
-                <td>${formatDate(cobro.fechaPlanilla) || '-'}</td>
-                <td>${cobro.numeroComprobante || '-'}</td>
-                <td>${formatDate(cobro.fechaComprobante) || '-'}</td>
-                <td>${cobro.descripcion || '-'}</td>
-            </tr>
-        `;
+                    
+                    <div class="mes-details" id="details-${mesKey}" style="display: block;">
+            `;
+            
+            // Generar detalles por usuario dentro del mes
+            Object.keys(datosDelMes.usuarios)
+                .sort((a, b) => {
+                    const totalA = datosDelMes.usuarios[a].cobros.reduce((sum, cobro) => sum + (cobro.monto || 0), 0);
+                    const totalB = datosDelMes.usuarios[b].cobros.reduce((sum, cobro) => sum + (cobro.monto || 0), 0);
+                    return totalB - totalA; // Ordenar por total descendente
+                })
+                .forEach(userId => {
+                    const userData = datosDelMes.usuarios[userId];
+                    const totalUsuario = userData.cobros.reduce((sum, cobro) => sum + (cobro.monto || 0), 0);
+                    
+                    html += `
+                        <div class="usuario-section mb-3 ms-4">
+                            <div class="usuario-header d-flex justify-content-between align-items-center p-3 bg-dark rounded mb-2" 
+                                 style="cursor: pointer;" onclick="toggleUsuarioDetails('${mesKey}-${userId}')">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle me-3">${userData.nombre.charAt(0).toUpperCase()}</div>
+                                    <div>
+                                        <h6 class="mb-0 text-white">${userData.nombre}</h6>
+                                        <small class="text-muted">${userData.tipo === 'comprobante' ? 'Planilla + Comprobante' : 'Solo Planilla'}</small>
+                                    </div>
+                                </div>
+                                <div class="usuario-stats d-flex gap-2 align-items-center">
+                                    <span class="badge bg-success fs-6">$${totalUsuario.toLocaleString('es-CO')}</span>
+                                    <span class="badge bg-info">${userData.cobros.length} cobros</span>
+                                    <i class="fas fa-chevron-down text-white" id="chevron-${mesKey}-${userId}"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="usuario-cobros" id="details-${mesKey}-${userId}" style="display: block;">
+                                <div class="table-responsive ms-3">
+                                    <table class="table table-dark table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th><i class="fas fa-calendar me-1"></i>Fecha</th>
+                                                <th><i class="fas fa-dollar-sign me-1"></i>Monto</th>
+                                                <th><i class="fas fa-clipboard-list me-1"></i>Planilla</th>
+                                                <th><i class="fas fa-file-invoice me-1"></i>Comprobante</th>
+                                                <th><i class="fas fa-comment me-1"></i>Descripción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                    `;
+                    
+                    // Mostrar cada cobro del usuario
+                    userData.cobros
+                        .sort((a, b) => {
+                            const fechaA = new Date(a.fechaParaFiltro);
+                            const fechaB = new Date(b.fechaParaFiltro);
+                            return fechaB - fechaA; // Más reciente primero
+                        })
+                        .forEach(cobro => {
+                            const fechaDisplay = new Date(cobro.fechaParaFiltro).toLocaleDateString('es-CO');
+                            
+                            html += `
+                                <tr>
+                                    <td>${fechaDisplay}</td>
+                                    <td><span class="badge bg-success">$${(cobro.monto || 0).toLocaleString('es-CO')}</span></td>
+                                    <td>
+                                        ${cobro.numeroPlanilla ? 
+                                            `<span class="badge bg-primary">${cobro.numeroPlanilla}</span><br>
+                                             <small class="text-muted">${formatDate(cobro.fechaPlanilla)}</small>` : 
+                                            '<span class="text-muted">-</span>'
+                                        }
+                                    </td>
+                                    <td>
+                                        ${cobro.numeroComprobante ? 
+                                            `<span class="badge bg-warning text-dark">${cobro.numeroComprobante}</span><br>
+                                             <small class="text-muted">${formatDate(cobro.fechaComprobante)}</small>` : 
+                                            '<span class="text-muted">-</span>'
+                                        }
+                                    </td>
+                                    <td>${cobro.descripcion || '-'}</td>
+                                </tr>
+                            `;
+                        });
+                    
+                    html += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+    
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+// Función para organizar el reporte por mes y usuario
+function organizarReportePorMesYUsuario(cobros) {
+    const reporte = {};
+    
+    cobros.forEach(cobro => {
+        // Determinar la fecha para el filtro
+        let fechaParaFiltro;
+        if (cobro.tipo === 'comprobante') {
+            fechaParaFiltro = cobro.fechaComprobante || cobro.fechaPlanilla;
+        } else {
+            fechaParaFiltro = cobro.fechaPlanilla;
+        }
+        
+        if (!fechaParaFiltro) return;
+        
+        const fecha = new Date(fechaParaFiltro);
+        const mesKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+        
+        // Inicializar mes si no existe
+        if (!reporte[mesKey]) {
+            reporte[mesKey] = {
+                usuarios: {},
+                totalCobros: 0
+            };
+        }
+        
+        // Inicializar usuario si no existe
+        if (!reporte[mesKey].usuarios[cobro.usuarioId]) {
+            const usuario = usuarios.find(u => u.id === cobro.usuarioId);
+            reporte[mesKey].usuarios[cobro.usuarioId] = {
+                nombre: usuario ? usuario.nombre : cobro.usuarioNombre || 'Usuario Desconocido',
+                tipo: usuario ? usuario.tipo : (cobro.tipo || 'planilla'),
+                cobros: []
+            };
+        }
+        
+        // Agregar cobro con fecha para filtro
+        reporte[mesKey].usuarios[cobro.usuarioId].cobros.push({
+            ...cobro,
+            fechaParaFiltro: fechaParaFiltro
+        });
+        
+        reporte[mesKey].totalCobros++;
     });
     
-    html += '</tbody></table>';
-    container.innerHTML = html;
+    return reporte;
+}
+
+// Funciones para toggle de secciones en el reporte
+function toggleMesDetails(mesKey) {
+    const details = document.getElementById(`details-${mesKey}`);
+    const chevron = document.getElementById(`chevron-${mesKey}`);
+    
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-up');
+    } else {
+        details.style.display = 'none';
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    }
+}
+
+function toggleUsuarioDetails(key) {
+    const details = document.getElementById(`details-${key}`);
+    const chevron = document.getElementById(`chevron-${key}`);
+    
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-up');
+    } else {
+        details.style.display = 'none';
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    }
 }
 
 // Obtener cobros filtrados según los criterios del reporte
@@ -2283,3 +2580,6 @@ window.toggleYearDetails = toggleYearDetails;
 window.showGeneralStatsModal = showGeneralStatsModal;
 window.showAllUsersModal = showAllUsersModal;
 window.makeStatsClickable = makeStatsClickable;
+window.toggleMesDetails = toggleMesDetails;
+window.toggleUsuarioDetails = toggleUsuarioDetails;
+window.toggleUserView = toggleUserView;
