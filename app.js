@@ -46,6 +46,311 @@ function dateToInputFormat(date) {
     return `${year}-${month}-${day}`;
 }
 
+// === SISTEMA DE NOTIFICACIONES AVANZADO ===
+class NotificationSystem {
+    constructor() {
+        this.container = document.getElementById('notificationContainer');
+        this.notifications = [];
+    }
+
+    show(message, type = 'info', duration = 5000) {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas ${this.getIcon(type)} me-2"></i>
+                <div class="flex-grow-1">${message}</div>
+                <button class="btn-close btn-close-white ms-2" onclick="notifications.remove('${notification.id}')"></button>
+            </div>
+        `;
+        
+        const id = 'notif_' + Date.now();
+        notification.id = id;
+        
+        this.container.appendChild(notification);
+        this.notifications.push({ id, element: notification, timeout: null });
+        
+        // Auto-remove después del tiempo especificado
+        if (duration > 0) {
+            setTimeout(() => this.remove(id), duration);
+        }
+        
+        return id;
+    }
+
+    remove(id) {
+        const notificationData = this.notifications.find(n => n.id === id);
+        if (notificationData) {
+            notificationData.element.style.animation = 'slideOutRight 0.3s ease';
+            setTimeout(() => {
+                if (notificationData.element.parentNode) {
+                    notificationData.element.parentNode.removeChild(notificationData.element);
+                }
+                this.notifications = this.notifications.filter(n => n.id !== id);
+            }, 300);
+        }
+    }
+
+    getIcon(type) {
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+        return icons[type] || icons.info;
+    }
+
+    // Métodos de conveniencia
+    success(message, duration) { return this.show(message, 'success', duration); }
+    error(message, duration) { return this.show(message, 'error', duration); }
+    warning(message, duration) { return this.show(message, 'warning', duration); }
+    info(message, duration) { return this.show(message, 'info', duration); }
+}
+
+// Instancia global del sistema de notificaciones
+const notifications = new NotificationSystem();
+
+// === SISTEMA DE GRÁFICOS CON CHART.JS ===
+class ChartManager {
+    constructor() {
+        this.charts = {};
+        this.colors = {
+            primary: '#00ff9f',
+            secondary: '#4dabf7',
+            accent: '#667eea',
+            success: '#51cf66',
+            warning: '#ffd93d',
+            danger: '#ff6b6b'
+        };
+    }
+
+    createMonthlyChart() {
+        const ctx = document.getElementById('monthlyChart');
+        if (!ctx) return;
+
+        const monthlyData = this.getMonthlyData();
+        
+        if (this.charts.monthly) {
+            this.charts.monthly.destroy();
+        }
+
+        this.charts.monthly = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: monthlyData.labels,
+                datasets: [{
+                    label: 'Cobros Mensuales',
+                    data: monthlyData.values,
+                    borderColor: this.colors.primary,
+                    backgroundColor: `${this.colors.primary}20`,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: this.colors.primary,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#ffffff' },
+                        grid: { color: '#30363d' }
+                    },
+                    y: {
+                        ticks: { 
+                            color: '#ffffff',
+                            callback: function(value) {
+                                return '$' + value.toLocaleString('es-CO');
+                            }
+                        },
+                        grid: { color: '#30363d' }
+                    }
+                }
+            }
+        });
+    }
+
+    createUserChart() {
+        const ctx = document.getElementById('userChart');
+        if (!ctx) return;
+
+        const userData = this.getUserData();
+        
+        if (this.charts.user) {
+            this.charts.user.destroy();
+        }
+
+        this.charts.user = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: userData.labels,
+                datasets: [{
+                    data: userData.values,
+                    backgroundColor: [
+                        this.colors.primary,
+                        this.colors.secondary,
+                        this.colors.accent,
+                        this.colors.success,
+                        this.colors.warning,
+                        this.colors.danger
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#1a1a2e'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#ffffff',
+                            padding: 20
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    getMonthlyData() {
+        const year = parseInt(document.getElementById('dashboardYear')?.value || new Date().getFullYear());
+        const monthlyTotals = Array(12).fill(0);
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+        cobros.forEach(cobro => {
+            const fechaPlanilla = cobro.fechaPlanilla || cobro.fechaComprobante;
+            if (fechaPlanilla) {
+                const fecha = new Date(fechaPlanilla);
+                if (fecha.getFullYear() === year) {
+                    monthlyTotals[fecha.getMonth()] += cobro.monto || 0;
+                }
+            }
+        });
+
+        return {
+            labels: monthNames,
+            values: monthlyTotals
+        };
+    }
+
+    getUserData() {
+        const userTotals = {};
+        
+        cobros.forEach(cobro => {
+            const userId = cobro.usuarioId;
+            const userName = cobro.usuarioNombre || 'Usuario Desconocido';
+            
+            if (!userTotals[userId]) {
+                userTotals[userId] = {
+                    name: userName,
+                    total: 0
+                };
+            }
+            userTotals[userId].total += cobro.monto || 0;
+        });
+
+        const sortedUsers = Object.values(userTotals)
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 6); // Top 6 usuarios
+
+        return {
+            labels: sortedUsers.map(user => user.name),
+            values: sortedUsers.map(user => user.total)
+        };
+    }
+
+    // Método para obtener análisis detallado de usuarios organizados por años y meses
+    getDetailedUserAnalysis() {
+        const analysis = {};
+        
+        cobros.forEach(cobro => {
+            const userId = cobro.usuarioId;
+            const userName = cobro.usuarioNombre || 'Usuario Desconocido';
+            const fechaPlanilla = new Date(cobro.fechaPlanilla || cobro.fechaComprobante);
+            const year = fechaPlanilla.getFullYear();
+            const month = fechaPlanilla.getMonth();
+            const monto = cobro.monto || 0;
+            
+            // Inicializar estructura de datos
+            if (!analysis[userId]) {
+                analysis[userId] = {
+                    name: userName,
+                    totalGeneral: 0,
+                    years: {}
+                };
+            }
+            
+            if (!analysis[userId].years[year]) {
+                analysis[userId].years[year] = {
+                    total: 0,
+                    cobros: 0,
+                    months: Array(12).fill(0),
+                    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                               'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+                };
+            }
+            
+            // Acumular datos
+            analysis[userId].totalGeneral += monto;
+            analysis[userId].years[year].total += monto;
+            analysis[userId].years[year].cobros += 1;
+            analysis[userId].years[year].months[month] += monto;
+        });
+        
+        return analysis;
+    }
+
+    // Método para obtener estadísticas por año
+    getYearlyStats() {
+        const yearlyStats = {};
+        
+        cobros.forEach(cobro => {
+            const fechaPlanilla = new Date(cobro.fechaPlanilla || cobro.fechaComprobante);
+            const year = fechaPlanilla.getFullYear();
+            const monto = cobro.monto || 0;
+            
+            if (!yearlyStats[year]) {
+                yearlyStats[year] = {
+                    total: 0,
+                    cobros: 0,
+                    usuarios: new Set()
+                };
+            }
+            
+            yearlyStats[year].total += monto;
+            yearlyStats[year].cobros += 1;
+            yearlyStats[year].usuarios.add(cobro.usuarioId);
+        });
+        
+        // Convertir Set a número
+        Object.keys(yearlyStats).forEach(year => {
+            yearlyStats[year].usuarios = yearlyStats[year].usuarios.size;
+        });
+        
+        return yearlyStats;
+    }
+
+    updateCharts() {
+        this.createMonthlyChart();
+        this.createUserChart();
+    }
+}
+
+// Instancia global del gestor de gráficos
+const chartManager = new ChartManager();
+
 // Credenciales de administrador (en producción esto debería estar en el backend)
 const adminCredentials = {
     username: "admin",
@@ -199,6 +504,11 @@ function showSection(sectionName, targetElement = null) {
     switch(sectionName) {
         case 'dashboard':
             updateDashboard();
+            // Hacer estadísticas clickeables y actualizar gráficos
+            setTimeout(() => {
+                makeStatsClickable();
+                chartManager.updateCharts();
+            }, 100);
             break;
         case 'cobros':
             loadCobrosRecientes();
@@ -1361,25 +1671,22 @@ function exportarPDF() {
 }
 
 // Mostrar alertas
-function showAlert(message, type) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    alertDiv.style.top = '20px';
-    alertDiv.style.right = '20px';
-    alertDiv.style.zIndex = '9999';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+// Mostrar alertas usando el nuevo sistema de notificaciones
+function showAlert(message, type = 'info') {
+    // Mapear tipos de Bootstrap a tipos de notificación
+    const typeMap = {
+        'primary': 'info',
+        'secondary': 'info',
+        'success': 'success',
+        'danger': 'error',
+        'warning': 'warning',
+        'info': 'info',
+        'light': 'info',
+        'dark': 'info'
+    };
     
-    document.body.appendChild(alertDiv);
-    
-    // Auto-cerrar después de 5 segundos
-    setTimeout(() => {
-        if (alertDiv.parentNode) {
-            alertDiv.parentNode.removeChild(alertDiv);
-        }
-    }, 5000);
+    const notificationType = typeMap[type] || type;
+    return notifications.show(message, notificationType);
 }
 
 // Editar cobro
@@ -1610,6 +1917,355 @@ async function eliminarCobroConfirmado(cobroId) {
     }
 }
 
+// Funciones para vista detallada de usuarios con análisis por años y meses
+function showUserDetailModal(userId) {
+    const userAnalysis = chartManager.getDetailedUserAnalysis();
+    const userData = userAnalysis[userId];
+    
+    if (!userData) {
+        notifications.show('Usuario no encontrado', 'error');
+        return;
+    }
+    
+    const modalBody = document.getElementById('userDetailModalBody');
+    if (!modalBody) return;
+    
+    // Generar contenido del modal con análisis detallado por años
+    let html = `
+        <div class="user-detail-header">
+            <div class="d-flex align-items-center mb-4">
+                <div class="avatar-circle me-3" style="width: 60px; height: 60px; font-size: 24px;">
+                    ${userData.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                    <h4 class="mb-1">${userData.name}</h4>
+                    <p class="text-muted mb-0">Total General: <span class="text-success fw-bold">$${userData.totalGeneral.toLocaleString('es-CO')}</span></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="yearly-analysis">
+    `;
+    
+    // Organizar años en orden descendente
+    const years = Object.keys(userData.years).sort((a, b) => b - a);
+    
+    years.forEach(year => {
+        const yearData = userData.years[year];
+        html += `
+            <div class="year-section mb-4">
+                <div class="year-header d-flex justify-content-between align-items-center p-3 bg-primary rounded mb-3" 
+                     style="cursor: pointer;" onclick="toggleYearDetails('${year}')">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>Año ${year}
+                    </h5>
+                    <div class="year-stats d-flex gap-3">
+                        <span class="badge bg-light text-dark">
+                            <i class="fas fa-dollar-sign me-1"></i>$${yearData.total.toLocaleString('es-CO')}
+                        </span>
+                        <span class="badge bg-light text-dark">
+                            <i class="fas fa-receipt me-1"></i>${yearData.cobros} cobros
+                        </span>
+                        <i class="fas fa-chevron-down" id="chevron-${year}"></i>
+                    </div>
+                </div>
+                
+                <div class="year-details" id="details-${year}" style="display: none;">
+                    <div class="monthly-breakdown">
+                        <h6 class="mb-3"><i class="fas fa-chart-line me-2"></i>Desglose Mensual</h6>
+                        <div class="row">
+        `;
+        
+        // Mostrar datos mensuales
+        yearData.monthNames.forEach((monthName, index) => {
+            const monthTotal = yearData.months[index];
+            if (monthTotal > 0) {
+                html += `
+                    <div class="col-md-4 col-sm-6 mb-3">
+                        <div class="month-card p-3 border rounded">
+                            <div class="month-name fw-bold text-primary">${monthName}</div>
+                            <div class="month-amount text-success">$${monthTotal.toLocaleString('es-CO')}</div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `
+                        </div>
+                    </div>
+                    
+                    <div class="monthly-chart-container mt-4">
+                        <canvas id="monthlyChart-${year}" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    modalBody.innerHTML = html;
+    
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById('userDetailModal'));
+    modal.show();
+    
+    // Crear gráficos para cada año después de que el modal se muestre
+    modal._element.addEventListener('shown.bs.modal', () => {
+        years.forEach(year => {
+            const yearData = userData.years[year];
+            const chartData = {
+                labels: yearData.monthNames,
+                datasets: [{
+                    label: `Cobros ${year}`,
+                    data: yearData.months,
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            };
+            
+            chartManager.createMonthlyChart(`monthlyChart-${year}`, chartData);
+        });
+    });
+}
+
+// Función para alternar la visibilidad de los detalles del año
+function toggleYearDetails(year) {
+    const details = document.getElementById(`details-${year}`);
+    const chevron = document.getElementById(`chevron-${year}`);
+    
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-up');
+    } else {
+        details.style.display = 'none';
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    }
+}
+
+// Función para mostrar estadísticas generales detalladas
+function showGeneralStatsModal() {
+    const yearlyStats = chartManager.getYearlyStats();
+    const modalBody = document.getElementById('generalStatsModalBody');
+    
+    if (!modalBody) return;
+    
+    let html = `
+        <div class="general-stats-content">
+            <h5 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Estadísticas Generales por Año</h5>
+            <div class="yearly-stats">
+    `;
+    
+    // Organizar años en orden descendente
+    const years = Object.keys(yearlyStats).sort((a, b) => b - a);
+    
+    years.forEach(year => {
+        const stats = yearlyStats[year];
+        const promedio = stats.total / stats.cobros;
+        
+        html += `
+            <div class="year-stat-card mb-4 p-4 border rounded">
+                <div class="row">
+                    <div class="col-md-2">
+                        <h4 class="text-primary">${year}</h4>
+                    </div>
+                    <div class="col-md-10">
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <div class="stat-item">
+                                    <div class="stat-label text-muted">Total Recaudado</div>
+                                    <div class="stat-value text-success fw-bold">$${stats.total.toLocaleString('es-CO')}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="stat-item">
+                                    <div class="stat-label text-muted">Total Cobros</div>
+                                    <div class="stat-value text-info fw-bold">${stats.cobros}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="stat-item">
+                                    <div class="stat-label text-muted">Usuarios Activos</div>
+                                    <div class="stat-value text-warning fw-bold">${stats.usuarios}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-3">
+                                <div class="stat-item">
+                                    <div class="stat-label text-muted">Promedio por Cobro</div>
+                                    <div class="stat-value text-secondary fw-bold">$${Math.round(promedio).toLocaleString('es-CO')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+            
+            <div class="stats-chart-container mt-4">
+                <h6 class="mb-3"><i class="fas fa-chart-line me-2"></i>Evolución Anual</h6>
+                <canvas id="yearlyStatsChart" height="300"></canvas>
+            </div>
+        </div>
+    `;
+    
+    modalBody.innerHTML = html;
+    
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById('generalStatsModal'));
+    modal.show();
+    
+    // Crear gráfico de evolución anual
+    modal._element.addEventListener('shown.bs.modal', () => {
+        const chartData = {
+            labels: years.reverse(), // Orden ascendente para el gráfico
+            datasets: [{
+                label: 'Total Recaudado',
+                data: years.map(year => yearlyStats[year].total),
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4
+            }, {
+                label: 'Número de Cobros',
+                data: years.map(year => yearlyStats[year].cobros),
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                borderWidth: 3,
+                fill: false,
+                yAxisID: 'y1'
+            }]
+        };
+        
+        const ctx = document.getElementById('yearlyStatsChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e9ecef'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#e9ecef' },
+                            grid: { color: '#495057' }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            ticks: { 
+                                color: '#e9ecef',
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString('es-CO');
+                                }
+                            },
+                            grid: { color: '#495057' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            ticks: { color: '#e9ecef' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+    });
+}
+
+// Función para hacer clickeables las estadísticas del dashboard
+function makeStatsClickable() {
+    // Hacer clickeable el card de usuarios
+    const totalUsuariosCard = document.querySelector('.stat-card[data-stat="usuarios"]');
+    if (totalUsuariosCard && !totalUsuariosCard.onclick) {
+        totalUsuariosCard.style.cursor = 'pointer';
+        totalUsuariosCard.onclick = showAllUsersModal;
+    }
+    
+    // Hacer clickeable el card de estadísticas generales
+    const totalCobrosCard = document.querySelector('.stat-card[data-stat="total"]');
+    if (totalCobrosCard && !totalCobrosCard.onclick) {
+        totalCobrosCard.style.cursor = 'pointer';
+        totalCobrosCard.onclick = showGeneralStatsModal;
+    }
+}
+
+// Función para mostrar modal con todos los usuarios
+function showAllUsersModal() {
+    const userAnalysis = chartManager.getDetailedUserAnalysis();
+    const modalBody = document.getElementById('allUsersModalBody');
+    
+    if (!modalBody) return;
+    
+    let html = `
+        <div class="usuarios-grid">
+    `;
+    
+    // Ordenar usuarios por total general
+    const sortedUsers = Object.entries(userAnalysis)
+        .sort(([,a], [,b]) => b.totalGeneral - a.totalGeneral);
+    
+    sortedUsers.forEach(([userId, userData]) => {
+        const yearsCount = Object.keys(userData.years).length;
+        const currentYear = new Date().getFullYear();
+        const currentYearData = userData.years[currentYear];
+        
+        html += `
+            <div class="usuario-card" onclick="showUserDetailModal('${userId}')">
+                <div class="usuario-header">
+                    <div class="avatar-circle">${userData.name.charAt(0).toUpperCase()}</div>
+                    <div class="usuario-name">${userData.name}</div>
+                </div>
+                <div class="usuario-stats">
+                    <div class="stat">
+                        <span class="stat-label">Total General</span>
+                        <span class="stat-value text-success">$${userData.totalGeneral.toLocaleString('es-CO')}</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Años Activos</span>
+                        <span class="stat-value text-info">${yearsCount}</span>
+                    </div>
+                    ${currentYearData ? `
+                    <div class="stat">
+                        <span class="stat-label">${currentYear}</span>
+                        <span class="stat-value text-warning">$${currentYearData.total.toLocaleString('es-CO')}</span>
+                    </div>
+                    ` : ''}
+                </div>
+                <div class="usuario-action">
+                    <i class="fas fa-eye"></i> Ver Detalles
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    modalBody.innerHTML = html;
+    
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById('allUsersModal'));
+    modal.show();
+}
+
 // Funciones globales para eventos onclick
 window.showSection = showSection;
 window.logout = logout;
@@ -1622,3 +2278,8 @@ window.exportarPDF = exportarPDF;
 window.editarCobro = editarCobro;
 window.eliminarCobro = eliminarCobro;
 window.guardarCobroEditado = guardarCobroEditado;
+window.showUserDetailModal = showUserDetailModal;
+window.toggleYearDetails = toggleYearDetails;
+window.showGeneralStatsModal = showGeneralStatsModal;
+window.showAllUsersModal = showAllUsersModal;
+window.makeStatsClickable = makeStatsClickable;

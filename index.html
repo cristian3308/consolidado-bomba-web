@@ -7,6 +7,8 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="dark-theme.css">
 </head>
@@ -93,10 +95,12 @@
                         <h1 class="h2"><i class="fas fa-chart-line me-2" style="color: var(--accent-primary);"></i>Dashboard</h1>
                         <div class="btn-toolbar mb-2 mb-md-0">
                             <select id="dashboardYear" class="form-select me-2" onchange="updateDashboard()">
+                                <option value="2023">2023</option>
                                 <option value="2024">2024</option>
                                 <option value="2025" selected>2025</option>
+                                <option value="2026">2026</option>
                             </select>
-                            <select id="dashboardMonth" class="form-select" onchange="updateDashboard()">
+                            <select id="dashboardMonth" class="form-select me-2" onchange="updateDashboard()">
                                 <option value="">Todos los meses</option>
                                 <option value="1">Enero</option>
                                 <option value="2">Febrero</option>
@@ -111,22 +115,26 @@
                                 <option value="11">Noviembre</option>
                                 <option value="12">Diciembre</option>
                             </select>
+                            <button class="btn btn-outline-primary" onclick="exportDashboard()">
+                                <i class="fas fa-download me-1"></i>Exportar
+                            </button>
                         </div>
                     </div>
 
+                    <!-- Tarjetas de estadísticas -->
                     <div class="dashboard-stats slide-in-up">
-                        <div class="stat-card">
+                        <div class="stat-card" data-stat="total" onclick="showGeneralStatsModal()">
                             <div class="stat-icon icon-money">
                                 <i class="fas fa-dollar-sign"></i>
                             </div>
                             <div class="stat-value" id="totalCobros">$0</div>
                             <div class="stat-label">Total Cobros</div>
                             <div class="stat-change positive" id="cobrosTrend">
-                                <i class="fas fa-arrow-up me-1"></i>+0% este mes
+                                <i class="fas fa-arrow-up me-1"></i>+0% este período
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" data-stat="transacciones">
                             <div class="stat-icon icon-chart">
                                 <i class="fas fa-receipt"></i>
                             </div>
@@ -137,7 +145,7 @@
                             </div>
                         </div>
 
-                        <div class="stat-card">
+                        <div class="stat-card" data-stat="usuarios" onclick="showAllUsersModal()">
                             <div class="stat-icon icon-users">
                                 <i class="fas fa-users"></i>
                             </div>
@@ -148,39 +156,55 @@
                             </div>
                         </div>
 
-                        <div class="stat-card">
-                            <div class="stat-icon icon-total">
-                                <i class="fas fa-chart-bar"></i>
+                        <div class="stat-card" data-stat="promedio">
+                            <div class="stat-icon icon-average">
+                                <i class="fas fa-calculator"></i>
                             </div>
                             <div class="stat-value" id="promedioCobro">$0</div>
                             <div class="stat-label">Promedio por Cobro</div>
                             <div class="stat-change positive" id="promedioTrend">
-                                <i class="fas fa-equals me-1"></i>Estable
+                                <i class="fas fa-arrow-up me-1"></i>+0% vs anterior
                             </div>
                         </div>
                     </div>
 
-                    <div class="row">
+                    <!-- Gráficos -->
+                    <div class="row mb-4">
                         <div class="col-lg-8">
-                            <div class="card glass-effect">
+                            <div class="card">
                                 <div class="card-header">
-                                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Resumen por Usuario</h5>
+                                    <h5><i class="fas fa-chart-area me-2"></i>Tendencia de Cobros Mensuales</h5>
                                 </div>
                                 <div class="card-body">
-                                    <div id="userSummary" class="table-responsive">
-                                        <!-- Se llenará dinámicamente -->
-                                    </div>
+                                    <canvas id="monthlyChart" height="100"></canvas>
                                 </div>
                             </div>
                         </div>
                         <div class="col-lg-4">
-                            <div class="card glass-effect">
+                            <div class="card">
                                 <div class="card-header">
-                                    <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Actividad Reciente</h5>
+                                    <h5><i class="fas fa-chart-pie me-2"></i>Distribución por Usuario</h5>
                                 </div>
                                 <div class="card-body">
-                                    <div id="actividadReciente">
-                                        <p class="text-muted">Cargando actividad...</p>
+                                    <canvas id="userChart" height="200"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Usuarios Detallados -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5><i class="fas fa-users me-2"></i>Detalle por Usuario</h5>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleUserView()">
+                                        <i class="fas fa-expand-alt me-1"></i>Vista Expandida
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="usuariosDetallados" class="usuarios-grid">
+                                        <!-- Se llenará dinámicamente -->
                                     </div>
                                 </div>
                             </div>
@@ -576,6 +600,68 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Modal de Detalle de Usuario -->
+    <div class="modal fade" id="userDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-circle me-2"></i>Detalle de Usuario
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="userDetailModalBody">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Estadísticas Generales -->
+    <div class="modal fade" id="generalStatsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-chart-bar me-2"></i>Estadísticas Generales
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="generalStatsModalBody">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Todos los Usuarios -->
+    <div class="modal fade" id="allUsersModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-users me-2"></i>Todos los Usuarios
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="allUsersModalBody">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor de notificaciones -->
+    <div id="notificationContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <!-- Las notificaciones aparecerán aquí -->
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
